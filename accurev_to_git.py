@@ -13,12 +13,12 @@ def run_command(command, cwd=None):
 def accurev_login():
     """Ensures the user is logged into AccuRev to avoid session token expiration issues."""
     print("🔄 Logging into AccuRev...")
-    run_command("accurev login")
+    run_command("accurev login jp_adm AccPass123")
 
-def check_existing_workspace(target_dir):
-    """Checks if a workspace exists at the target directory."""
+def check_existing_workspace(workspace_name):
+    """Checks if a workspace already exists in AccuRev."""
     result = run_command("accurev show -fx wspaces")
-    return target_dir in result
+    return workspace_name in result
 
 def migrate_accurev_stream(stream_name, git_repo_path):
     """Migrates an AccuRev stream to a Git repository as a folder."""
@@ -32,11 +32,12 @@ def migrate_accurev_stream(stream_name, git_repo_path):
 
     # Step 3: Check if workspace exists
     workspace_name = f"accurev_{stream_name}_ws"
-    if not check_existing_workspace(target_dir):
+    
+    if not check_existing_workspace(workspace_name):
         print(f"Creating new workspace: {workspace_name}")
         run_command(f"accurev mkws -w {workspace_name} -b {stream_name} -l {target_dir}")
     else:
-        print(f"✅ Using existing workspace at {target_dir}")
+        print(f"✅ Using existing workspace: {workspace_name}")
 
     # Step 4: Update AccuRev workspace
     run_command(f"accurev update", cwd=target_dir)
