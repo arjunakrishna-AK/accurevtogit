@@ -1,6 +1,7 @@
 import os
 import subprocess
 import argparse
+import datetime
 
 def run_command(command, cwd=None):
     """Executes a shell command and returns the output."""
@@ -31,7 +32,8 @@ def migrate_accurev_stream(stream_name, git_repo_path):
     os.makedirs(target_dir, exist_ok=True)
 
     # Step 3: Check if workspace exists
-    workspace_name = f"accurev_{stream_name}_ws"
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    workspace_name = f"accurev_{stream_name}_ws_{timestamp}"
     
     if not check_existing_workspace(workspace_name):
         print(f"Creating new workspace: {workspace_name}")
