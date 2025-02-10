@@ -73,3 +73,10 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
     run_command(f"git push origin master", cwd=git_repo_path)
 
     print(f"✅ Successfully migrated AccuRev stream '{stream_name}' history to Git.")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="AccuRev to Git Full Migration")
+    parser.add_argument("stream_name", help="AccuRev stream to migrate")
+    parser.add_argument("git_repo_path", help="Path to the target Git repository")
+    
+    args = parser.parse_args()
+    migrate_accurev_to_git(args.stream_name, args.git_repo_path)
