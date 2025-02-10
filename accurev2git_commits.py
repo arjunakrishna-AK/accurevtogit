@@ -2,6 +2,7 @@ import os
 import subprocess
 import argparse
 import datetime
+import re
 
 def run_command(command, cwd=None):
     """Executes a shell command and returns the output."""
@@ -16,31 +17,46 @@ def accurev_login():
     print("🔄 Logging into AccuRev...")
     run_command("accurev login jp_adm AccPass123")  # Change credentials accordingly
 
-def get_accurev_history(stream_name):
-    """Retrieves AccuRev transaction history for a given stream."""
-    print("📜 Fetching AccuRev history...")
-    history_cmd = f"accurev hist -s {stream_name} -fx"
-    history_output = run_command(history_cmd)
-
+def parse_accurev_history(history_output):
+    """Parses the text-based AccuRev history output."""
     transactions = []
-    for line in history_output.split("\n"):
-        if "transaction id=" in line:
-            txn_id = line.split('"')[1]
-        if "<user>" in line:
-            user = line.split(">")[1].split("<")[0]
-        if "<time>" in line:
-            date_str = line.split(">")[1].split("<")[0]
-            transactions.append((txn_id, user, date_str))
-    
+    lines = history_output.split("\n")
+
+    current_txn = None
+
+    for line in lines:
+        txn_match = re.match(r"transaction (\d+); promote; ([\d/]+ [\d:]+) ; user: (.+)", line)
+        if txn_match:
+            if current_txn:
+                transactions.append(current_txn)  # Save the previous transaction
+            
+            txn_id, date_str, user = txn_match.groups()
+            txn_time = datetime.datetime.strptime(date_str, "%Y/%m/%d %H:%M:%S")
+            git_date = txn_time.strftime("%Y-%m-%dT%H:%M:%S")
+            current_txn = {"txn_id": txn_id, "user": user, "date": git_date, "message": ""}
+
+        elif current_txn and line.startswith("  #"):
+            current_txn["message"] = line.strip("  #").strip()
+
+    if current_txn:
+        transactions.append(current_txn)  # Save the last transaction
+
     return transactions[::-1]  # Reverse to apply oldest commits first
+
+def get_accurev_history(stream_name):
+    """Retrieves and parses AccuRev transaction history for a given stream."""
+    print(f"📜 Fetching AccuRev history for stream '{stream_name}'...")
+    history_cmd = f"accurev hist -s {stream_name} -t now.1000"
+    history_output = run_command(history_cmd)
+    return parse_accurev_history(history_output)
 
 def migrate_accurev_to_git(stream_name, git_repo_path):
     """Migrates AccuRev stream history into a Git repository."""
     
-    # Step 1: Log into AccuRev (avoids expired session errors)
+    # Step 1: Log into AccuRev
     accurev_login()
 
-    # Step 2: Create a new unique workspace (avoid conflicts)
+    # Step 2: Create a new unique workspace
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     workspace_name = f"accurev_{stream_name}_ws_{timestamp}"
     target_dir = os.path.join(git_repo_path, stream_name)
@@ -57,20 +73,20 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
     transactions = get_accurev_history(stream_name)
 
     # Step 5: Apply each AccuRev version as a Git commit
-    for txn_id, user, date_str in transactions:
-        print(f"🚀 Processing Transaction: {txn_id} by {user} on {date_str}")
+    for txn in transactions:
+        print(f"🚀 Processing Transaction: {txn['txn_id']} by {txn['user']} on {txn['date']}")
 
         # Populate workspace with transaction state
-        run_command(f"accurev pop -t {txn_id} -R -O -v {stream_name} -L {target_dir}")
+        run_command(f"accurev pop -t {txn['txn_id']} -R -O -v {stream_name} -L {target_dir}")
 
         # Add files to Git
         run_command(f"git add .", cwd=git_repo_path)
 
         # Commit with original author and timestamp
         commit_cmd = (
-            f'GIT_COMMITTER_DATE="{date_str}" GIT_AUTHOR_DATE="{date_str}" '
-            f'git commit --author="{user} <{user}@accurev.com>" --date="{date_str}" '
-            f'-m "AccuRev Transaction {txn_id}"'
+            f'GIT_COMMITTER_DATE="{txn["date"]}" GIT_AUTHOR_DATE="{txn["date"]}" '
+            f'git commit --author="{txn["user"]} <{txn["user"]}@accurev.com>" --date="{txn["date"]}" '
+            f'-m "{txn["message"]}"'
         )
         run_command(commit_cmd, cwd=git_repo_path)
 
