@@ -11,7 +11,7 @@ def run_command(command, cwd=None, exit_on_fail=True):
     if result.returncode != 0:
         error_message = f"❌ Error running command: {command}\n{result.stderr}"
         print(error_message)
-        
+
         # Log errors to a file
         with open("accurev_migration_errors.log", "a") as error_log:
             error_log.write(f"{datetime.datetime.now()} - {error_message}\n")
@@ -57,11 +57,6 @@ def get_accurev_history(stream_name):
     print(f"📜 Fetching AccuRev history for stream '{stream_name}'...")
     history_cmd = f"accurev hist -s {stream_name} -t now.1000"
     history_output = run_command(history_cmd)
-    
-    if not history_output:
-        print(f"⚠️ No history found for stream '{stream_name}'.")
-        exit(1)
-    
     return parse_accurev_history(history_output)
 
 def migrate_accurev_to_git(stream_name, git_repo_path):
@@ -79,44 +74,40 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
     print(f"🛠️ Creating new workspace: {workspace_name}")
     run_command(f"accurev mkws -w {workspace_name} -b {stream_name} -l {target_dir}")
 
-    # Step 3: Ensure the workspace is updated before popping files
-    print("🔄 Updating AccuRev workspace...")
-    run_command(f"accurev update", cwd=target_dir)
-
-    # Step 4: Initialize Git if not already initialized
+    # Step 3: Initialize Git if not already initialized
     if not os.path.exists(os.path.join(git_repo_path, ".git")):
         run_command(f"git init", cwd=git_repo_path)
-        run_command(f"git checkout develop", cwd=git_repo_path)
+        run_command(f"git checkout -b main", cwd=git_repo_path)
 
-    # Step 5: Get AccuRev transaction history
+    # Step 4: Get AccuRev transaction history
     transactions = get_accurev_history(stream_name)
 
-    # Step 6: Apply each AccuRev version as a Git commit
+    # Step 5: Apply each AccuRev version as a Git commit
     for txn in transactions:
         print(f"🚀 Processing Transaction: {txn['txn_id']} by {txn['user']} on {txn['date']}")
 
-        # 🔹 Check if the transaction has files 🔹
-        hist_check_cmd = f"accurev hist -s {stream_name} -t {txn['txn_id']}"
-        hist_result = run_command(hist_check_cmd, exit_on_fail=False)
+        # Update workspace before populating elements
+        run_command(f"accurev update", cwd=target_dir, exit_on_fail=False)
 
-        if not hist_result or "no elements selected" in hist_result.lower():
-            print(f"⚠️ Skipping Transaction {txn['txn_id']} (No files in this transaction).")
-            continue  # Move to next transaction
+        # Check if there are elements to populate
+        status_output = run_command(f"accurev stat -f", cwd=target_dir, exit_on_fail=False)
+        if "No elements selected." in status_output:
+            print(f"⚠️ No elements to populate for transaction {txn['txn_id']}. Creating empty commit.")
+            run_command(f"git commit --allow-empty -m 'AccuRev Transaction {txn['txn_id']}' --date='{txn['date']}'", cwd=git_repo_path)
+            continue  # Move to the next transaction
 
         # Populate workspace with transaction state
         pop_result = run_command(f"accurev pop -t {txn['txn_id']} -R -O -L {target_dir}", exit_on_fail=False)
 
-        if pop_result is None or "No elements selected" in pop_result:
-            print(f"⚠️ Skipping Transaction {txn['txn_id']} (No files found).")
-            continue
+        if pop_result is None or "No elements selected." in pop_result:
+            print(f"⚠️ Skipping Transaction {txn['txn_id']} due to no changes.")
+            continue  # Move to the next transaction
 
         # Add files to Git
         run_command(f"git add .", cwd=git_repo_path)
 
-        # Ensure commit message is not empty
         commit_message = txn["message"] if txn["message"] else f"AccuRev Transaction {txn['txn_id']}"
 
-        # Commit with original author and timestamp
         commit_cmd = (
             f'GIT_COMMITTER_DATE="{txn["date"]}" GIT_AUTHOR_DATE="{txn["date"]}" '
             f'git commit --author="{txn["user"]} <{txn["user"]}@accurev.com>" --date="{txn["date"]}" '
@@ -124,7 +115,7 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
         )
         run_command(commit_cmd, cwd=git_repo_path)
 
-    # Step 7: Push to remote Git repository
+    # Step 6: Push to remote Git repository
     run_command(f"git push", cwd=git_repo_path)
 
     print(f"✅ Successfully migrated AccuRev stream '{stream_name}' history to Git.")
