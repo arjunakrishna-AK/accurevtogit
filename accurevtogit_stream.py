@@ -1,11 +1,10 @@
 import os
 import subprocess
-import git
 import datetime
 
 # Configuration
 #GITHUB_REPO = "git@github.com:yourusername/yourrepo.git"  # GitHub repo URL
-TEMP_DIR = "/home/parekjx6/accurevtogit/devacc2git"  # Temporary directory for migration
+TEMP_DIR = "/home/parekjx6/accurevtogit/devaccgit"  # Temporary directory for migration
 SELECTED_STREAMS = ["adminshare"]  # List of AccuRev streams to migrate
 
 
@@ -34,7 +33,7 @@ def migrate_stream(stream_name):
 
     # Set AccuRev workspace
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    workspace = f"accurev_{stream_name}_ws"
+    workspace = f"accurev_{stream_name}_ws_{timestamp}"
     run_command(f"accurev mkws -w {workspace} -b {stream_name} -l {TEMP_DIR}")
     run_command(f"accurev update", cwd=TEMP_DIR)
 
@@ -54,7 +53,7 @@ def migrate_stream(stream_name):
             time = entry.split('time="')[1].split('"')[0]
             comment = entry.split('comment="')[1].split('"')[0]
 
-            timestamp = timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
             # Synchronize to the transaction
             run_command(f"accurev update -t {trans_id}", cwd=TEMP_DIR)
