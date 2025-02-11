@@ -77,7 +77,7 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
     # Step 3: Initialize Git if not already initialized
     if not os.path.exists(os.path.join(git_repo_path, ".git")):
         run_command(f"git init", cwd=git_repo_path)
-        run_command(f"git checkout -b main", cwd=git_repo_path)
+        run_command(f"git checkout develop", cwd=git_repo_path)
 
     # Step 4: Get AccuRev transaction history
     transactions = get_accurev_history(stream_name)
@@ -88,13 +88,6 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
 
         # Update workspace before populating elements
         run_command(f"accurev update", cwd=target_dir, exit_on_fail=False)
-
-        # Check if there are elements to populate
-        status_output = run_command(f"accurev stat -f", cwd=target_dir, exit_on_fail=False)
-        if "No elements selected." in status_output:
-            print(f"⚠️ No elements to populate for transaction {txn['txn_id']}. Creating empty commit.")
-            run_command(f"git commit --allow-empty -m 'AccuRev Transaction {txn['txn_id']}' --date='{txn['date']}'", cwd=git_repo_path)
-            continue  # Move to the next transaction
 
         # Populate workspace with transaction state
         pop_result = run_command(f"accurev pop -t {txn['txn_id']} -R -O -L {target_dir}", exit_on_fail=False)
