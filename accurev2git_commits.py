@@ -86,7 +86,7 @@ def migrate_accurev_to_git(stream_name, git_repo_path):
     # Step 4: Initialize Git if not already initialized
     if not os.path.exists(os.path.join(git_repo_path, ".git")):
         run_command(f"git init", cwd=git_repo_path)
-        run_command(f"git checkout master", cwd=git_repo_path)
+        run_command(f"git checkout develop", cwd=git_repo_path)
 
     # Step 5: Get AccuRev transaction history
     transactions = get_accurev_history(stream_name)
