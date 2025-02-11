@@ -3,7 +3,6 @@ import subprocess
 import datetime
 
 # Configuration
-#GITHUB_REPO = "git@github.com:yourusername/yourrepo.git"  # GitHub repo URL
 TEMP_DIR = "/home/parekjx6/accurevtogit/devaccgit"  # Temporary directory for migration
 SELECTED_STREAMS = ["adminshare"]  # List of AccuRev streams to migrate
 
@@ -17,15 +16,6 @@ def run_command(command, cwd=None):
     return result.stdout.strip()
 
 
-def setup_git_repo():
-    """Initialize a fresh Git repository."""
-    if os.path.exists(TEMP_DIR):
-        run_command(f"rm -rf {TEMP_DIR}")  # Clean existing folder
-    os.makedirs(TEMP_DIR, exist_ok=True)
-
-    repo = git.Repo.init(TEMP_DIR)
-    return repo
-
 
 def migrate_stream(stream_name):
     """Migrate a specific AccuRev stream to Git."""
@@ -38,11 +28,9 @@ def migrate_stream(stream_name):
     run_command(f"accurev update", cwd=TEMP_DIR)
 
     # Fetch AccuRev history
-    history_output = run_command(f"accurev hist -s {stream_name} -fx")
+    history_output = run_command(f"accurev hist -s {stream_name} -t now.1000")
 
     # Convert AccuRev history to Git commits
-    repo = setup_git_repo()
-    #run_command(f"git remote add origin {GITHUB_REPO}", cwd=TEMP_DIR)
 
     for entry in history_output.split("<transaction "):
         if "id=" not in entry:
